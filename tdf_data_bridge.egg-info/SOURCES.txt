@@ -1,0 +1,9 @@
+LICENSE
+README.md
+setup.py
+tdf_data_bridge.egg-info/PKG-INFO
+tdf_data_bridge.egg-info/SOURCES.txt
+tdf_data_bridge.egg-info/dependency_links.txt
+tdf_data_bridge.egg-info/entry_points.txt
+tdf_data_bridge.egg-info/requires.txt
+tdf_data_bridge.egg-info/top_level.txt

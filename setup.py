@@ -7,8 +7,8 @@ setup(
     author="TheItalianDataGuy",
     packages=find_packages(),
     install_requires=[
-        "bleak==0.21.1",
-        "openant==0.2.0",
+        "bleak==0.22.3",
+        "openant==1.3.3",
         "pyserial==3.5",
     ],
     license="MIT",
