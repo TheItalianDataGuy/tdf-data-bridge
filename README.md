@@ -10,6 +10,8 @@ This project bridges **ANT+ FE-C** data (e.g. from Zwift or TrainerRoad) with **
 
 It also supports **BLE FTMS broadcasting** so BLE-only devices (like iPads or Apple TV) can receive indoor bike data and control the trainer wirelessly.
 
+**Upcoming:** Future updates may include enhanced FTMS control responses, improved simulation accuracy, and expanded device compatibility.
+
 ---
 
 ## 💡 Features
@@ -22,6 +24,7 @@ It also supports **BLE FTMS broadcasting** so BLE-only devices (like iPads or Ap
 - ✅ BLE control point command handling
 - ✅ Power, speed, cadence, incline, and gear notifications
 - ✅ Auto-logging to CSV for post-ride analysis
+- 🆕 *Planned*: FTMS response opcodes, virtual flywheel speed simulation, and dashboard integration
 
 ---
 
@@ -47,8 +50,11 @@ It also supports **BLE FTMS broadcasting** so BLE-only devices (like iPads or Ap
    ```bash
    pip install -r requirements.txt
    ```
-
-3. **Connect bike via USB-TTL (JST-PH cable)**
+   3. **Connect bike via USB-TTL (JST-PH cable)**:
+      - Plug the 4-pin JST-PH connector into your bike’s control board.
+      - Connect the other end (Dupont) to your USB-TTL adapter.
+      - Attach the adapter to your computer’s USB port.
+      - Confirm the serial port (e.g. `/dev/tty.SLAB_USBtoUART` on macOS) is detected.
 
 4. **Run the script**:
 
@@ -64,6 +70,8 @@ It also supports **BLE FTMS broadcasting** so BLE-only devices (like iPads or Ap
 
    Add `--debug` for verbose logging.
 
+   *Note: Future releases may introduce a configuration wizard and improved device auto-detection.*
+
 ---
 
 ## 📡 ANT+ and BLE Control
@@ -78,6 +86,8 @@ Supports opcodes:
 - `0x30`: Set resistance level
 - `0x40`: Simulated gear change (front/rear)
 
+*Planned: Additional FTMS opcodes for richer control feedback and compatibility.*
+
 ---
 
 ## 📊 Logged Data
@@ -89,11 +99,15 @@ All rides are logged to `ride_log.csv` with:
 - Speed (km/h)
 - Incline (%)
 
+*Future: More metrics and export formats may be supported.*
+
 ---
 
 ## 🧪 Testing
 
 Use [nRF Connect](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-desktop) to test the FTMS GATT service.
+
+*Planned: Automated test suite and sample data for easier validation.*
 
 ---
 
@@ -102,6 +116,8 @@ Use [nRF Connect](https://www.nordicsemi.com/Products/Development-tools/nRF-Conn
 - [ ] Add FTMS response opcodes for control confirmations
 - [ ] Implement speed simulation via virtual flywheel
 - [ ] Graphical dashboard (e.g. using Dash or Streamlit)
+- [ ] Improved device auto-detection and setup
+- [ ] Expanded bike compatibility
 
 ---
 
@@ -114,3 +130,4 @@ MIT License © 2025 [Your Name]
 ## 🙌 Acknowledgements
 
 Built with ❤️ for cyclists, hackers, and open source lovers.
+
