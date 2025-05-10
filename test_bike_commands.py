@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 import time
 from security_utils import is_authorized_mac, is_valid_opcode, is_throttled
-from tdf_data_bridge import (
+from main import (
     send_incline_command,
     send_resistance_command,
     send_gear,
