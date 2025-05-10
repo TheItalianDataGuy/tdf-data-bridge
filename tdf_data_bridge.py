@@ -39,7 +39,9 @@ def auto_detect_serial_port():
     for port in ports:
         if "SLAB" in port.description or "CP210" in port.description:
             return port.device
+    logging.warning("No compatible serial port detected.")
     return None
+
 
 # Send incline grade to bike using ASCII command
 
@@ -124,7 +126,6 @@ def on_data(data, serial_port):
             logging.error(f"[BLE Notify] Failed to send: {e}")
 
 # Handles incoming control commands from BLE FTMS Control Point
-
 def handle_control_command(data: bytearray):
     global serial_port_global, current_resistance, current_gear, control_point_characteristic
 
@@ -162,6 +163,32 @@ def handle_control_command(data: bytearray):
     else:
         logging.info(f"[BLE Control] Unhandled opcode: {opcode}")
 
+# Secure BLE write handler used to process FTMS control commands from Zwift or similar apps
+
+def on_write(device: BLEDevice, _: BleakGATTCharacteristic, data: bytearray):
+    if not is_authorized_mac(device.address):
+        logging.warning(f"[SECURITY] Unauthorized BLE device: {device.address}")
+        return
+    if is_throttled(device.address):
+        logging.warning(f"[SECURITY] Rate limit exceeded for {device.address}")
+        return
+    if not isinstance(data, bytearray) or len(data) < 2:
+        logging.warning("[SECURITY] Malformed data received")
+        return
+    opcode = data[0]
+    if not is_valid_opcode(opcode):
+        logging.warning(f"[SECURITY] Invalid opcode: {opcode}")
+        return
+
+    logging.debug(f"[BLE Control] Accepted command {list(data)} from {device.address}")
+    
+    try:
+        handle_control_command(data)
+    except Exception as e:
+        logging.error(f"[BLE Control] Failed to process command {list(data)}: {e}")
+
+
+
 # Initializes BLE FTMS GATT service with notify and control support
 
 async def start_ble_ftms():
@@ -197,7 +224,11 @@ def main():
     parser.add_argument("--ble", action="store_true", help="Enable BLE FTMS broadcasting")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
-    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
     serial_port = args.incline or auto_detect_serial_port()
     serial_port_global = serial_port
     if not serial_port:
