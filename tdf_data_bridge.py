@@ -52,7 +52,7 @@ def send_incline_command(grade, serial_port):
     value = f"{abs(int(round(grade))):02d}"
     cmd = f"G{sign}{value}\r\n".encode("ascii")
     try:
-        with serial.Serial(serial_port, 115200, timeout=1) as ser:
+        with serial.Serial(serial_port, 115200, timeout=1, exclusive=True) as ser:
             ser.write(cmd)
     except serial.SerialException as e:
         logging.error(f"[Serial Error] Could not write to bike: {e}")
@@ -125,16 +125,20 @@ def on_data(data, serial_port):
 
 def handle_control_command(data: bytearray):
     global serial_port_global, current_resistance, current_gear, control_point_characteristic
+
+    # Validate packet structure to prevent malformed data issues
+    if not isinstance(data, bytearray) or len(data) < 2:
+        logging.warning("[BLE Control] Invalid or malformed command received")
+        return
+
     def send_ack(opcode, result=0x01):
         if control_point_characteristic:
             response = bytearray([0x80, opcode, result])
             control_point_characteristic.value = response
-    global serial_port_global, current_resistance, current_gear
-    if len(data) < 2:
-        logging.warning("[BLE Control] Invalid command received")
-        return
+
     opcode = data[0]
     param = data[1]
+
     if opcode == 0x05:
         incline = int(param) / 10.0
         logging.info(f"[BLE Control] Set target incline: {incline}%")
