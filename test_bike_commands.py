@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import patch, MagicMock
+import time
 
-
-from your_module_name import (
+from tdf_data_bridge import (
     send_incline_command,
     send_resistance_command,
     send_gear,
@@ -12,12 +12,20 @@ from your_module_name import (
 # BLE security enhancements
 AUTHORIZED_DEVICES = {"00:11:22:33:44:55", "AA:BB:CC:DD:EE:FF"}
 ALLOWED_OPCODES = {0x05, 0x30, 0x40}
+last_command_time = {}
 
 def is_authorized_mac(mac_address):
     return mac_address in AUTHORIZED_DEVICES
 
 def is_valid_opcode(opcode):
     return opcode in ALLOWED_OPCODES
+
+def is_throttled(mac, cooldown=1.5):
+    now = time.time()
+    if mac in last_command_time and now - last_command_time[mac] < cooldown:
+        return True
+    last_command_time[mac] = now
+    return False
 
 class TestBikeCommands(unittest.TestCase):
 
@@ -64,19 +72,20 @@ class TestBikeCommands(unittest.TestCase):
         device = MagicMock()
         device.address = "DE:AD:BE:EF:00:00"
         data = bytearray([0x05, 10])
-        if not is_authorized_mac(device.address):
-            result = "rejected"
-        else:
-            result = "accepted"
+        result = "rejected" if not is_authorized_mac(device.address) else "accepted"
         self.assertEqual(result, "rejected")
 
     def test_reject_invalid_opcode(self):
         data = bytearray([0x99, 1])
-        if not is_valid_opcode(data[0]):
-            result = "rejected"
-        else:
-            result = "accepted"
+        result = "rejected" if not is_valid_opcode(data[0]) else "accepted"
         self.assertEqual(result, "rejected")
+
+    def test_ble_command_rate_limit(self):
+        mac = "00:11:22:33:44:55"
+        self.assertFalse(is_throttled(mac))  # first command
+        self.assertTrue(is_throttled(mac))   # second command too soon
+        time.sleep(2)
+        self.assertFalse(is_throttled(mac))  # after cooldown
 
 if __name__ == '__main__':
     unittest.main()
