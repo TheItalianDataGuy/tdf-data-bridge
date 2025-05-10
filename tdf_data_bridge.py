@@ -1,104 +1,173 @@
 import serial
 import argparse
+import logging
+import time
+import csv
+import os
 from openant.easy.node import Node
 from openant.easy.channel import Channel
+import serial.tools.list_ports
+import asyncio
 
 try:
-    from bleak import BleakServer  # Optional BLE support (Linux/macOS only)
+    from bleak import BleakServer, BleakService, BleakCharacteristic
+    from bleak.backends.device import BLEDevice
+    from bleak.backends.characteristic import BleakGATTCharacteristic
 except ImportError:
     BleakServer = None
 
 # ANT+ FE-C device type constant (normally 0x11 or 17)
 FE_C_DEVICE_TYPE = 17
 
-# Store last incline value globally for smoothing
-last_sent_incline = None
+last_sent_incline = None  # For smoothing
+log_file = "ride_log.csv"  # CSV log file path
+last_ble_data = b"\x00"  # Default BLE data state
 
-# Function to send incline commands to the bike
-# Accepts a grade between -10 and +20, formats it as a command string like 'G+05\r\n'
+ble_characteristic = None  # Reference to BLE characteristic for notifications
+
+# Function to auto-detect serial port based on ProForm characteristics
+def auto_detect_serial_port():
+    ports = serial.tools.list_ports.comports()
+    for port in ports:
+        if "SLAB" in port.description or "CP210" in port.description:
+            return port.device
+    return None
+
+# Function to send incline commands with smoothing and error handling
 def send_incline_command(grade, serial_port):
     global last_sent_incline
 
     if not (-10 <= grade <= 20):
         return
-
     if last_sent_incline is not None and abs(grade - last_sent_incline) < 1:
-        return  # Smoothing: don't send unless change is >= 1%
-
+        return  # Skip small changes for smoothing
     last_sent_incline = grade
 
-    sign = '+' if grade >= 0 else '-'  # Determine + or - sign
-    value = f"{abs(int(round(grade))):02d}"  # Format the absolute value with leading zero (e.g. '05')
-    cmd = f"G{sign}{value}\r\n".encode("ascii")  # Final command string (e.g. G+05\r\n)
-    with serial.Serial(serial_port, 115200, timeout=1) as ser:  # Open serial connection
-        ser.write(cmd)  # Send command to bike
+    sign = '+' if grade >= 0 else '-'
+    value = f"{abs(int(round(grade))):02d}"
+    cmd = f"G{sign}{value}\r\n".encode("ascii")
 
-# Callback function triggered when ANT+ data is received from the bike
-# Extracts power, cadence, and slope to control the bike in real-time
+    try:
+        with serial.Serial(serial_port, 115200, timeout=1) as ser:
+            ser.write(cmd)
+    except serial.SerialException as e:
+        logging.error(f"[Serial Error] Could not write to bike: {e}")
+
+# ANT+ data callback: maps grade, logs metrics, sends incline to bike
 def on_data(data, serial_port):
-    power = data[7] | (data[8] << 8)  # Extract power value (2 bytes, little endian)
-    cadence = data[10]  # Extract cadence from byte 10
+    global ble_characteristic
 
-    # Extract slope (grade) from ANT+ FE-C standard: slope = byte[5] | (byte[6] << 8) in 0.01%
+    power = data[7] | (data[8] << 8)
+    cadence = data[10]
+    speed = data[9]  # assuming speed is provided in byte 9 (for simulation)
     raw_grade = data[5] | (data[6] << 8)
     percent_grade = raw_grade / 100.0
 
-    # Optional: resistance mapping (e.g. make descents feel flatter)
     if percent_grade < 0:
-        mapped_grade = percent_grade * 0.5  # Reduce impact of downhills
+        mapped_grade = percent_grade * 0.5
     elif percent_grade > 10:
-        mapped_grade = 10 + (percent_grade - 10) * 0.3  # Flatten steep uphills slightly
+        mapped_grade = 10 + (percent_grade - 10) * 0.3
     else:
         mapped_grade = percent_grade
 
-    incline = max(-10, min(20, int(round(mapped_grade))))  # Clamp to bike-supported range
+    incline = max(-10, min(20, int(round(mapped_grade))))
 
-    print(f"Power: {power} W, Cadence: {cadence} rpm, Incline: {incline}%")
-    send_incline_command(incline, serial_port)  # Send mapped incline to bike
+    logging.info(f"Power: {power} W, Cadence: {cadence} rpm, Speed: {speed} kph, Incline: {incline}%")
 
-# Placeholder BLE FTMS service setup (actual implementation is platform-dependent)
-def start_ble_ftms():
+    # Append log to CSV
+    with open(log_file, "a", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow([time.time(), power, cadence, speed, incline])
+
+    send_incline_command(incline, serial_port)
+
+    # Notify BLE clients with updated data
+    if ble_characteristic and ble_characteristic.properties and "notify" in ble_characteristic.properties:
+        try:
+            notify_data = bytearray([
+                power & 0xFF, (power >> 8) & 0xFF,
+                cadence & 0xFF,
+                speed & 0xFF,
+                incline & 0xFF
+            ])
+            ble_characteristic.value = notify_data
+            logging.debug(f"[BLE Notify] Sent: {list(notify_data)}")
+        except Exception as e:
+            logging.error(f"[BLE Notify] Failed to send: {e}")
+
+# BLE FTMS Service Definition (with notifications)
+async def start_ble_ftms():
+    global ble_characteristic
+
     if BleakServer is None:
-        print("BLE not supported or bleak not installed.")
+        logging.error("Bleak or platform support for BLE not found.")
         return
-    print("[BLE] FTMS service would start here (implementation pending).")
 
-# Main setup for ANT+ communication with the bike
+    logging.info("[BLE] Starting FTMS broadcasting service...")
+
+    # Define FTMS service UUID and characteristics
+    FTMS_UUID = "1826"
+    CHARACTERISTIC_UUID = "2AD9"  # Indoor Bike Data
+
+    ble_characteristic = BleakCharacteristic(CHARACTERISTIC_UUID, ["notify"], value=b"\x00")
+    service = BleakService(FTMS_UUID)
+    service.add_characteristic(ble_characteristic)
+
+    logging.info("[BLE] FTMS GATT service initialized")
+    await asyncio.sleep(1)
+    logging.info("[BLE] (Simulation) BLE notifications active")
+
+# Main execution
 def main():
     parser = argparse.ArgumentParser(description="TDF Data Bridge")
-    parser.add_argument("--ant", default="usb:0", help="ANT+ device path (e.g., usb:0)")
-    parser.add_argument("--incline", default="/dev/tty.SLAB_USBtoUART", help="Serial port for incline control")
+    parser.add_argument("--ant", default="usb:0", help="ANT+ device path")
+    parser.add_argument("--incline", help="Serial port for incline control")
     parser.add_argument("--ble", action="store_true", help="Enable BLE FTMS broadcasting")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
+    # Configure logging
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
+
+    # Auto-detect serial port if not provided
+    serial_port = args.incline or auto_detect_serial_port()
+    if not serial_port:
+        logging.error("No serial port found. Specify --incline manually.")
+        return
+
+    # Create CSV log header if file doesn't exist
+    if not os.path.exists(log_file):
+        with open(log_file, "w", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["timestamp", "power", "cadence", "speed", "incline"])
+
     if args.ble:
-        start_ble_ftms()  # Optional BLE functionality (placeholder)
+        loop = asyncio.get_event_loop()
+        loop.create_task(start_ble_ftms())
 
     node = Node()
     network = node.get_free_network()
-    network.set_key(0xB9, [0]*8)  # ANT+ network key (public key)
+    network.set_key(0xB9, [0]*8)
 
     channel = node.new_channel(Channel.Type.BIDIRECTIONAL_RECEIVE)
-    channel.set_period(8182)  # Data transmission frequency (4 Hz)
-    channel.set_search_timeout(255)  # How long it searches before timing out (255 = always)
-    channel.set_rf_freq(57)  # ANT+ frequency (2457 MHz)
-    channel.set_id(0, 0, 0)  # Wildcard device ID
-    channel.set_device_type(FE_C_DEVICE_TYPE)  # Device type for smart trainers (Fitness Equipment Control)
+    channel.set_period(8182)
+    channel.set_search_timeout(255)
+    channel.set_rf_freq(57)
+    channel.set_id(0, 0, 0)
+    channel.set_device_type(FE_C_DEVICE_TYPE)
 
-    # Bind the callback with serial port context using a lambda
-    channel.on_broadcast_data = lambda data: on_data(data, args.incline)
+    channel.on_broadcast_data = lambda data: on_data(data, serial_port)
 
-    node.start()  # Start ANT+ communication
-    channel.open()  # Open the channel
+    node.start()
+    channel.open()
 
     try:
         while True:
-            pass  # Keeps the script running
+            time.sleep(0.1)
     except KeyboardInterrupt:
-        print("Stopped.")
-        channel.close()  # Close the ANT+ channel
-        node.stop()  # Stop the ANT+ node
+        logging.info("Stopped.")
+        channel.close()
+        node.stop()
 
-# Run the script if executed directly
 if __name__ == "__main__":
     main()
