@@ -1,2 +1,0 @@
-[console_scripts]
-tdf-bridge = tdf_data_bridge:main
