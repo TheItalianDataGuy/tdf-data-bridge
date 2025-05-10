@@ -4,7 +4,7 @@ setup(
     name="tdf_data_bridge",
     version="1.0.0",
     description="ProForm TDF Bike Control via ANT+ and BLE FTMS",
-    author="Your Name",
+    author="TheItalianDataGuy",
     packages=find_packages(),
     install_requires=[
         "bleak==0.21.1",

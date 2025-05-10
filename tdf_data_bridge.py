@@ -79,11 +79,14 @@ def send_gear(front, rear, serial_port):
 
 # Called every time new ANT+ data is received
 
+def estimate_speed_from_cadence(cadence, gear_ratio=2.5):
+    return round(cadence * gear_ratio / 60.0 * 3.6, 1)
+
 def on_data(data, serial_port):
     global ble_characteristic, current_resistance, current_incline, current_gear
     power = data[7] | (data[8] << 8)
     cadence = data[10]
-    speed = data[9]
+    speed = estimate_speed_from_cadence(cadence)
     raw_grade = data[5] | (data[6] << 8)
     percent_grade = raw_grade / 100.0
     if percent_grade < 0:
@@ -121,6 +124,11 @@ def on_data(data, serial_port):
 # Handles incoming control commands from BLE FTMS Control Point
 
 def handle_control_command(data: bytearray):
+    global serial_port_global, current_resistance, current_gear, control_point_characteristic
+    def send_ack(opcode, result=0x01):
+        if control_point_characteristic:
+            response = bytearray([0x80, opcode, result])
+            control_point_characteristic.value = response
     global serial_port_global, current_resistance, current_gear
     if len(data) < 2:
         logging.warning("[BLE Control] Invalid command received")
@@ -131,17 +139,20 @@ def handle_control_command(data: bytearray):
         incline = int(param) / 10.0
         logging.info(f"[BLE Control] Set target incline: {incline}%")
         send_incline_command(incline, serial_port_global)
+        send_ack(opcode)
     elif opcode == 0x30:
         resistance = int(param)
         current_resistance = resistance
         logging.info(f"[BLE Control] Set resistance level: {resistance}")
         send_resistance_command(resistance, serial_port_global)
+        send_ack(opcode)
     elif opcode == 0x40 and len(data) >= 3:
         front = data[1]
         rear = data[2]
         current_gear = (front, rear)
         logging.info(f"[BLE Control] Set gear: Front {front}, Rear {rear}")
         send_gear(front, rear, serial_port_global)
+        send_ack(opcode)
     else:
         logging.info(f"[BLE Control] Unhandled opcode: {opcode}")
 
