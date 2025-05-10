@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import time
-
+from security_utils import is_authorized_mac, is_valid_opcode, is_throttled
 from tdf_data_bridge import (
     send_incline_command,
     send_resistance_command,
@@ -9,23 +9,7 @@ from tdf_data_bridge import (
     estimate_speed_from_cadence
 )
 
-# BLE security enhancements
-AUTHORIZED_DEVICES = {"00:11:22:33:44:55", "AA:BB:CC:DD:EE:FF"}
-ALLOWED_OPCODES = {0x05, 0x30, 0x40}
-last_command_time = {}
 
-def is_authorized_mac(mac_address):
-    return mac_address in AUTHORIZED_DEVICES
-
-def is_valid_opcode(opcode):
-    return opcode in ALLOWED_OPCODES
-
-def is_throttled(mac, cooldown=1.5):
-    now = time.time()
-    if mac in last_command_time and now - last_command_time[mac] < cooldown:
-        return True
-    last_command_time[mac] = now
-    return False
 
 class TestBikeCommands(unittest.TestCase):
 
