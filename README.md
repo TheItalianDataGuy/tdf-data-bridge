@@ -1,89 +1,105 @@
-# TDF Data Bridge — Bring Your ProForm Bike to Life on Zwift
+# TDF Data Bridge
 
-This project enables your ProForm TDF 5.0 indoor bike to communicate with platforms like Zwift using ANT+ and BLE FTMS. It offers real-time control for incline, resistance, and gear, and supports secure BLE communication and data logging.
-
----
-
-## Features
-
-- Serial control of the ProForm bike via USB UART (CP2102)
-- ANT+ FE-C data receiver for power, cadence, speed, and grade
-- BLE FTMS broadcasting (speed, cadence, power, incline, gear)
-- Secure BLE Control Point:
-  - MAC address whitelist
-  - Opcode validation
-  - Rate limiting
-- Robust error handling for BLE communication
-- Timestamped CSV ride logging
+Control your **ProForm TDF 5.0** indoor bike using **Zwift**, **ANT+**, and **BLE FTMS**. This bridge allows automatic incline, resistance, and gear control while securely exposing data over Bluetooth and logging ride metrics locally.
 
 ---
 
-## Requirements
+## 🚴‍♂️ Features
 
-### Hardware
-- ProForm TDF 5.0 Bike
-- ANT+ USB Stick (e.g. Garmin, CooSpo)
-- CP2102 USB to TTL adapter (3.3V logic)
-- 4-pin JST-PH to Female Dupont cable
-
-### Software
-- Python 3.8+
-- Required libraries:
-```bash
-pip install -r requirements.txt
-```
+- Control incline, resistance, and gear via serial commands
+- Read real-time data from ANT+ FE-C broadcasts
+- Broadcast metrics to BLE FTMS-compatible apps (e.g., Zwift)
+- Secure BLE control: MAC whitelist, opcode filtering, rate limiting
+- Automatically logs rides to CSV (`ride_log.csv`)
+- CLI tool installed via `tdf-bridge` command
 
 ---
 
-## Usage
+## 🔧 Installation
 
-Run the bridge:
+Install using `pip` with the new [`pyproject.toml`](https://peps.python.org/pep-0621/) standard:
 
 ```bash
-python main.py --ble --incline /dev/ttyUSB0 --debug
+pip install .
 ```
 
-### Flags
+Or build a wheel:
+
+```bash
+pip install build
+python -m build
+```
+
+Then install the `.whl` file from `dist/`.
+
+---
+
+## 💻 Usage
+
+```bash
+tdf-bridge --ble --incline /dev/ttyUSB0 --debug
+```
+
+### CLI Options
 - `--ble`: Enable BLE FTMS broadcasting
-- `--incline`: Serial port path (e.g., `/dev/ttyUSB0` or `COM3`)
-- `--debug`: Enable detailed logging
-- `--ant`: Path to ANT+ USB device (default: `usb:0`)
+- `--incline`: Set serial port path manually (optional)
+- `--ant`: Set ANT+ USB device (default: `usb:0`)
+- `--debug`: Enable detailed logs
 
 ---
 
-## Security
+## 🔐 Security
 
-BLE control is protected by:
-- MAC address whitelist (see `security_utils.py`)
-- Allowed FTMS opcodes only
-- Command rate limiting (default: 1.5s)
+- BLE writes only accepted from approved MAC addresses
+- Only specific FTMS opcodes allowed
+- Commands rate-limited (configurable)
 
-All unexpected BLE data is safely rejected and logged.
+Security settings are defined in `config.json`:
+
+```json
+{
+  "authorized_devices": ["AA:BB:CC:DD:EE:FF"],
+  "allowed_opcodes": [5, 48, 64],
+  "rate_limit_seconds": 1.5
+}
+```
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 .
-├── main.py                    # Core application logic
-├── security_utils.py          # BLE MAC whitelist, opcode checks, rate limiting
-├── test_bike_commands.py      # Unit tests
-├── requirements.txt           # Python dependencies
-├── ride_log.csv               # Generated session logs
-└── README.md                  # This file
+├── tdf_data_bridge/           # Main module
+├── security_utils.py          # BLE security checks
+├── ride_log.csv               # Generated ride log
+├── config.json                # Security settings
+├── requirements.txt
+├── pyproject.toml
+├── README.md
+└── LICENSE
 ```
 
 ---
 
-## Future Improvements
+## 🛠 Development
 
-- Web dashboard for live telemetry
-- Config file for trusted MACs and settings
-- Unit tests for BLE security and ANT+ parsing
+Run locally:
+
+```bash
+python tdf_data_bridge/main.py --debug --ble
+```
+
+Test with mock BLE devices or ANT+ emulator if needed.
 
 ---
 
-## License
+## 📜 License
 
-MIT License © 2025
+[MIT License](LICENSE)
+
+---
+
+## 🌐 Author
+
+[TheItalianDataGuy](https://github.com/TheItalianDataGuy)
