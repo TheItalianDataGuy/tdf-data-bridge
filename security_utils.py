@@ -1,8 +1,15 @@
 import time
+import json
 
-AUTHORIZED_DEVICES = {"00:11:22:33:44:55", "AA:BB:CC:DD:EE:FF"}
-ALLOWED_OPCODES = {0x05, 0x30, 0x40}
+with open("config.json") as f:
+    config = json.load(f)
+
+AUTHORIZED_DEVICES = set(config["authorized_devices"])
+ALLOWED_OPCODES = set(config["allowed_opcodes"])
+RATE_LIMIT_SECONDS = config["rate_limit_seconds"]
+
 last_command_time = {}
+
 
 def is_authorized_mac(mac_address):
     """Check if the BLE device MAC address is in the authorized list."""
