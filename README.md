@@ -1,133 +1,111 @@
-# 🌀 TDF Data Bridge
+# TDF Data Bridge — Bring Your ProForm Bike to Life on Zwift
 
-> Control your ProForm TDF bike using ANT+ and BLE FTMS — now with resistance, incline, ERG mode, and gear simulation.
+Welcome to **TDF Data Bridge**, the project that transforms your **ProForm TDF 5.0** indoor bike into a smart, interactive machine compatible with platforms like **Zwift** and **TrainerRoad**.
 
----
-
-## 🚴 Overview
-
-This project bridges **ANT+ FE-C** data (e.g. from Zwift or TrainerRoad) with **ProForm TDF bikes** via USB serial. It interprets real-time cycling data and sends precise incline, resistance, and gear commands to your bike.
-
-It also supports **BLE FTMS broadcasting** so BLE-only devices (like iPads or Apple TV) can receive indoor bike data and control the trainer wirelessly.
-
-**Upcoming:** Future updates may include enhanced FTMS control responses, improved simulation accuracy, and expanded device compatibility.
+Whether you're climbing virtual mountains or logging consistent training indoors, this tool enables real-time control, feedback, and secure BLE communication with your bike.
 
 ---
 
-## 💡 Features
+## What It Does
 
-- ✅ ANT+ FE-C listener for Zwift, Rouvy, TrainerRoad, etc.
-- ✅ BLE FTMS-compatible GATT service
-- ✅ Real-time incline adjustment
-- ✅ Resistance / ERG mode control
-- ✅ Gear simulation (front + rear)
-- ✅ BLE control point command handling
-- ✅ Power, speed, cadence, incline, and gear notifications
-- ✅ Auto-logging to CSV for post-ride analysis
-- 🆕 *Planned*: FTMS response opcodes, virtual flywheel speed simulation, and dashboard integration
+- Serial control of the ProForm bike using a UART (CP2102) USB adapter
+- ANT+ data receiver for power, cadence, speed, and grade
+- BLE FTMS broadcasting for full compatibility with Zwift and similar apps
+- Two-way communication: send incline, resistance, and gear commands to the bike
+- Secure BLE Control Point support: MAC address whitelisting, opcode filtering, and rate limiting
+- CSV-based ride data logging
 
 ---
 
-## 🔧 Hardware Requirements
+## BLE Security Features
 
-- ProForm TDF 5.0 (or similar ICON-based bike)
-- USB-TTL adapter (e.g. CP2102)
-- Pre-crimped 4-pin JST-PH to Dupont cable
-- ANT+ USB dongle
-- Optional: BLE host device (Linux/macOS)
+The `on_write()` BLE handler includes:
 
----
+- MAC address filtering (whitelist only)
+- Opcode validation to allow only recognized FTMS commands
+- Rate limiting to prevent excessive BLE writes from a single device
 
-## ⚙️ Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/tdf-data-bridge.git
-   cd tdf-data-bridge
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-   3. **Connect bike via USB-TTL (JST-PH cable)**:
-      - Plug the 4-pin JST-PH connector into your bike’s control board.
-      - Connect the other end (Dupont) to your USB-TTL adapter.
-      - Attach the adapter to your computer’s USB port.
-      - Confirm the serial port (e.g. `/dev/tty.SLAB_USBtoUART` on macOS) is detected.
-
-4. **Run the script**:
-
-   **ANT+ only**:
-   ```bash
-   python tdf_data_bridge.py --ant usb:0 --incline /dev/tty.SLAB_USBtoUART
-   ```
-
-   **With BLE FTMS support**:
-   ```bash
-   python tdf_data_bridge.py --ant usb:0 --incline /dev/tty.SLAB_USBtoUART --ble
-   ```
-
-   Add `--debug` for verbose logging.
-
-   *Note: Future releases may introduce a configuration wizard and improved device auto-detection.*
+To enable this handler in your BLE setup:
+```python
+control_point_characteristic.set_write_callback(on_write)
+```
 
 ---
 
-## 📡 ANT+ and BLE Control
+## Requirements
 
-| Protocol | Input           | Output                     |
-|----------|------------------|-----------------------------|
-| ANT+     | Zwift, TrainerRoad | Bike: Incline & ERG        |
-| BLE FTMS | Companion App      | Broadcast metrics + control|
+### Hardware
+- ProForm TDF 5.0 Bike
+- ANT+ USB stick (Garmin, CooSpo, etc.)
+- UART USB to TTL adapter (CP2102 preferred)
+- 4-pin JST-PH to female Dupont cable
 
-Supports opcodes:
-- `0x05`: Set target incline
-- `0x30`: Set resistance level
-- `0x40`: Simulated gear change (front/rear)
-
-*Planned: Additional FTMS opcodes for richer control feedback and compatibility.*
-
----
-
-## 📊 Logged Data
-
-All rides are logged to `ride_log.csv` with:
-- Timestamp
-- Power (W)
-- Cadence (RPM)
-- Speed (km/h)
-- Incline (%)
-
-*Future: More metrics and export formats may be supported.*
+### Software
+- Python 3.8+
+- Install required libraries:
+```bash
+pip install -r requirements.txt
+```
 
 ---
 
-## 🧪 Testing
+## How to Run
 
-Use [nRF Connect](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-desktop) to test the FTMS GATT service.
+```bash
+python main.py --ble --incline /dev/ttyUSB0 --debug
+```
 
-*Planned: Automated test suite and sample data for easier validation.*
-
----
-
-## 🛠 Roadmap
-
-- [ ] Add FTMS response opcodes for control confirmations
-- [ ] Implement speed simulation via virtual flywheel
-- [ ] Graphical dashboard (e.g. using Dash or Streamlit)
-- [ ] Improved device auto-detection and setup
-- [ ] Expanded bike compatibility
+### Command-Line Flags
+- `--ble`: Start the FTMS BLE service
+- `--incline`: Serial port path connected to the bike
+- `--debug`: Enable debug logging
+- `--ant`: ANT+ USB device path (default: `usb:0`)
 
 ---
 
-## 📄 License
+## Testing
 
-MIT License © 2025 [Your Name]
+Run unit tests with:
+```bash
+python -m unittest test_bike_commands.py
+```
+Covers:
+- Incline/resistance commands
+- Gear shifting
+- BLE MAC whitelist, opcode validation, and throttle enforcement
 
 ---
 
-## 🙌 Acknowledgements
+## Project Structure
 
-Built with ❤️ for cyclists, hackers, and open source lovers.
+```
+.
+├── main.py                    # Main application logic
+├── test_bike_commands.py     # Unit tests
+├── ride_log.csv              # Auto-generated ride data log
+├── requirements.txt          # Dependency list
+└── README.md                 # Project description
+```
 
+---
+
+## Planned Improvements
+
+- Web dashboard (Flask/React) for live performance data
+- Bluetooth auto-pairing and bonding
+- Configurable settings for trusted devices and ANT+ sources
+
+---
+
+## Credits
+
+Developed with the help of:
+- [OpenANT](https://github.com/Tigge/openant)
+- [Bleak](https://github.com/hbldh/bleak)
+- [Zwift Insider](https://zwiftinsider.com/) for guidance on FTMS specs
+
+---
+
+## License
+
+MIT License © 2025

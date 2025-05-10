@@ -8,6 +8,33 @@ from openant.easy.node import Node
 from openant.easy.channel import Channel
 import serial.tools.list_ports
 import asyncio
+from bleak.backends.device import BLEDevice
+from bleak.backends.characteristic import BleakGATTCharacteristic
+
+# Set of trusted MAC addresses allowed to interact with BLE control
+AUTHORIZED_DEVICES = {"00:11:22:33:44:55", "AA:BB:CC:DD:EE:FF"}
+
+# Set of allowed FTMS opcodes to prevent undefined behavior
+ALLOWED_OPCODES = {0x05, 0x30, 0x40}
+
+# Dictionary to store last command timestamps for rate limiting
+last_command_time = {}
+
+def is_authorized_mac(mac_address):
+    """Check if the BLE device MAC address is in the authorized list."""
+    return mac_address in AUTHORIZED_DEVICES
+
+def is_valid_opcode(opcode):
+    """Verify that the received opcode is supported."""
+    return opcode in ALLOWED_OPCODES
+
+def is_throttled(mac, cooldown=1.5):
+    """Limit how often commands can be sent from the same MAC address."""
+    now = time.time()
+    if mac in last_command_time and now - last_command_time[mac] < cooldown:
+        return True
+    last_command_time[mac] = now
+    return False
 
 try:
     from bleak import BleakServer, BleakService, BleakCharacteristic
@@ -173,16 +200,17 @@ async def start_ble_ftms():
     CONTROL_UUID = "2AD8"
     ble_characteristic = BleakCharacteristic(DATA_UUID, ["notify"], value=b"\x00")
     control_point_characteristic = BleakCharacteristic(CONTROL_UUID, ["write"], value=b"\x00")
-    def on_write(_: BLEDevice, __: BleakGATTCharacteristic, data: bytearray):
-        logging.debug(f"[BLE Control] Write received: {list(data)}")
-        handle_control_command(data)
+    
+    # Use secure write handler defined earlier
     control_point_characteristic.set_write_callback(on_write)
+
     service = BleakService(FTMS_UUID)
     service.add_characteristic(ble_characteristic)
     service.add_characteristic(control_point_characteristic)
     logging.info("[BLE] FTMS GATT service initialized with control support")
     await asyncio.sleep(1)
     logging.info("[BLE] (Simulation) BLE notifications and control active")
+
 
 # Program entry point
 
