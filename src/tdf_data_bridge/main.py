@@ -11,8 +11,9 @@ import asyncio
 from security_utils import is_authorized_mac, is_valid_opcode, is_throttled
 from security_utils import init_security_config
 import json
+import platform
 
-
+# BLE imports
 try:
     from bleak import BleakServer, BleakService, BleakCharacteristic
     from bleak.backends.device import BLEDevice
@@ -21,15 +22,13 @@ except ImportError:
     BleakServer = None
 
 FE_C_DEVICE_TYPE = 17
-
-last_sent_incline = None
 log_file = "ride_log.csv"
-last_ble_data = b"\x00"
 
+# Global states
+last_sent_incline = None
 ble_characteristic = None
 control_point_characteristic = None
 serial_port_global = None
-
 current_resistance = 10
 current_incline = 0.0
 current_gear = (1, 1)  # (front, rear)
@@ -204,21 +203,31 @@ async def start_ble_ftms():
     CONTROL_UUID = "2AD8"
     ble_characteristic = BleakCharacteristic(DATA_UUID, ["notify"], value=b"\x00")
     control_point_characteristic = BleakCharacteristic(CONTROL_UUID, ["write"], value=b"\x00")
+
+    # --- BLE Library Usage Note ---
+    # The following relies on a non-standard Bleak API (set_write_callback).
+    # If you upgrade or change Bleak, ensure this method exists or adapt accordingly.
+    if hasattr(control_point_characteristic, "set_write_callback"):
+        control_point_characteristic.set_write_callback(on_write)
+    else:
+        logging.error(
+            "[BLE] set_write_callback is not available on BleakCharacteristic. "
+            "You may be using a standard Bleak version that does not support this. "
+            "Please adapt the BLE write handler registration to your library."
+        )
     
-    # Use secure write handler defined earlier
-    control_point_characteristic.set_write_callback(on_write)
 
     service = BleakService(FTMS_UUID)
     service.add_characteristic(ble_characteristic)
     service.add_characteristic(control_point_characteristic)
-    logging.info("[BLE] FTMS GATT service initialized with control support")
+    logging.info("[BLE] FTMS GATT service initialized with control support (notify-only)")
     await asyncio.sleep(1)
     logging.info("[BLE] (Simulation) BLE notifications and control active")
 
 
 # Program entry point
 
-def main():
+async def main():
     global serial_port_global
 
     # --- CLI argument parsing ---
@@ -265,32 +274,47 @@ def main():
         with open(log_file, "w", newline="") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(["timestamp", "power", "cadence", "speed", "incline"])
+
+    # --- ANT+/Serial logic as a coroutine ---
+    async def ant_serial_loop():
+        node = Node()
+        network = node.get_free_network()
+        network.set_key(0xB9, [0]*8)
+        channel = node.new_channel(Channel.Type.BIDIRECTIONAL_RECEIVE)
+        channel.set_period(8182)
+        channel.set_search_timeout(255)
+        channel.set_rf_freq(57)
+        channel.set_id(0, 0, 0)
+        channel.set_device_type(FE_C_DEVICE_TYPE)
+        channel.on_broadcast_data = lambda data: on_data(data, serial_port)
+        node.start()
+        channel.open()
+        try:
+            while True:
+                await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            logging.info("ANT+/Serial loop cancelled. Exiting gracefully.")
+            channel.close()
+            node.stop()
+
+    # --- Run BLE and ANT+/Serial concurrently if BLE enabled ---
+    tasks = []
     if args.ble:
         if BleakServer is None:
             logging.error("BLE support not available. Skipping BLE setup.")
+        elif platform.system() == "Windows":
+            logging.error("BLE FTMS server is not supported on Windows. Skipping BLE setup.")
         else:
-            loop = asyncio.get_event_loop()
-            loop.create_task(start_ble_ftms())
-            
-    node = Node()
-    network = node.get_free_network()
-    network.set_key(0xB9, [0]*8)
-    channel = node.new_channel(Channel.Type.BIDIRECTIONAL_RECEIVE)
-    channel.set_period(8182)
-    channel.set_search_timeout(255)
-    channel.set_rf_freq(57)
-    channel.set_id(0, 0, 0)
-    channel.set_device_type(FE_C_DEVICE_TYPE)
-    channel.on_broadcast_data = lambda data: on_data(data, serial_port)
-    node.start()
-    channel.open()
+            tasks.append(asyncio.create_task(start_ble_ftms()))
+    tasks.append(asyncio.create_task(ant_serial_loop()))
+
     try:
-        while True:
-            time.sleep(0.1)
+        await asyncio.gather(*tasks)
     except KeyboardInterrupt:
         logging.info("Program interrupted by user. Exiting gracefully.")
-        channel.close()
-        node.stop()
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

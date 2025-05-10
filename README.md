@@ -41,10 +41,19 @@ tdf-bridge --ble --incline /dev/ttyUSB0 --debug
 ```
 
 ### CLI Options
-- `--ble`: Enable BLE FTMS broadcasting
+- `--ble`: Enable BLE FTMS broadcasting (Linux/macOS only)
 - `--incline`: Set serial port path manually (optional)
 - `--ant`: Set ANT+ USB device (default: `usb:0`)
 - `--debug`: Enable detailed logs
+- `--config`: Path to security config file (default: `config.json`)
+
+---
+
+## ⚠️ Platform Support
+
+- **BLE FTMS server is only available on Linux and macOS.**
+- On **Windows**, BLE FTMS broadcasting is not supported due to Bleak library limitations.
+- ANT+/serial features work on all platforms.
 
 ---
 
@@ -66,14 +75,37 @@ Security settings are defined in `config.json`:
 
 ---
 
+## 🔑 Permissions
+
+- **Serial Port:**  
+  On Linux, add your user to the `dialout` group:  
+  ```bash
+  sudo usermod -aG dialout $USER
+  ```
+
+- **BLE:**  
+  On Linux, add your user to the `bluetooth` group:  
+  ```bash
+  sudo usermod -aG bluetooth $USER
+  ```
+  On macOS, no special permissions are usually required.
+
+- **Do NOT run as root** unless absolutely necessary.
+
+---
+
 ## 📁 Project Structure
 
 ```
 .
-├── tdf_data_bridge/           # Main module
-├── security_utils.py          # BLE security checks
-├── ride_log.csv               # Generated ride log
-├── config.json                # Security settings
+├── src/
+│   └── tdf_data_bridge/
+│       ├── main.py               # Main entry point
+│       ├── security_utils.py     # BLE security checks
+│       ├── test_bike_commands.py # Serial command handling 
+        └── __init__.py           # Package initialization
+├── ride_log.csv                 # Generated ride log
+├── config.json                  # Security settings
 ├── requirements.txt
 ├── pyproject.toml
 ├── README.md
@@ -91,6 +123,17 @@ python tdf_data_bridge/main.py --debug --ble
 ```
 
 Test with mock BLE devices or ANT+ emulator if needed.
+
+---
+
+## 🛡 Dependency Security
+
+- To check for known vulnerabilities, run:
+  ```bash
+  pip install pip-audit
+  pip-audit
+  ```
+- Update dependencies regularly and review release notes for security patches.
 
 ---
 
