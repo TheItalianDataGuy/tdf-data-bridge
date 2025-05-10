@@ -241,7 +241,16 @@ def main():
     try:
         with open(args.config, "r") as f:
             config = json.load(f)
-        init_security_config(config)  
+
+        # Validate expected keys exist
+        required_keys = {"authorized_devices", "allowed_opcodes", "rate_limit_seconds"}
+        if not required_keys.issubset(config.keys()):
+            logging.error(f"Config file is missing required keys: {required_keys - config.keys()}")
+            return
+
+        # Initialize security settings
+        init_security_config(config)
+
     except Exception as e:
         logging.error(f"Failed to load config file: {e}")
         return
@@ -257,8 +266,12 @@ def main():
             writer = csv.writer(csvfile)
             writer.writerow(["timestamp", "power", "cadence", "speed", "incline"])
     if args.ble:
-        loop = asyncio.get_event_loop()
-        loop.create_task(start_ble_ftms())
+        if BleakServer is None:
+            logging.error("BLE support not available. Skipping BLE setup.")
+        else:
+            loop = asyncio.get_event_loop()
+            loop.create_task(start_ble_ftms())
+            
     node = Node()
     network = node.get_free_network()
     network.set_key(0xB9, [0]*8)
@@ -275,7 +288,7 @@ def main():
         while True:
             time.sleep(0.1)
     except KeyboardInterrupt:
-        logging.info("Stopped.")
+        logging.info("Program interrupted by user. Exiting gracefully.")
         channel.close()
         node.stop()
 
