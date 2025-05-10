@@ -7,7 +7,7 @@ name = "tdf-data-bridge"
 version = "1.0.0"
 description = "ProForm TDF Bike Control via ANT+ and BLE FTMS"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
   { name = "TheItalianDataGuy" }
 ]

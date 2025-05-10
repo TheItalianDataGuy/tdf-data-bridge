@@ -9,6 +9,8 @@ from openant.easy.channel import Channel
 import serial.tools.list_ports
 import asyncio
 from security_utils import is_authorized_mac, is_valid_opcode, is_throttled
+from security_utils import init_security_config
+import json
 
 
 try:
@@ -218,17 +220,33 @@ async def start_ble_ftms():
 
 def main():
     global serial_port_global
+
+    # --- CLI argument parsing ---
     parser = argparse.ArgumentParser(description="TDF Data Bridge")
     parser.add_argument("--ant", default="usb:0", help="ANT+ device path")
     parser.add_argument("--incline", help="Serial port for incline control")
     parser.add_argument("--ble", action="store_true", help="Enable BLE FTMS broadcasting")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--config", default="config.json", help="Path to config.json")
     args = parser.parse_args()
+
+    # --- Logging configuration ---
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
+    
+    # --- Load config.json ---
+    try:
+        with open(args.config, "r") as f:
+            config = json.load(f)
+        init_security_config(config)  
+    except Exception as e:
+        logging.error(f"Failed to load config file: {e}")
+        return
+    
+    # --- Serial port setup ---
     serial_port = args.incline or auto_detect_serial_port()
     serial_port_global = serial_port
     if not serial_port:
