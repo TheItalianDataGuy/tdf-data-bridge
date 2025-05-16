@@ -1,6 +1,31 @@
 import serial
-import serial.tools.list_ports
+import argparse
 import logging
+import time
+import csv
+import os
+from openant.easy.node import Node
+from openant.easy.channel import Channel
+import serial.tools.list_ports
+import asyncio
+import random
+from security_utils import (
+    is_authorized_mac,
+    is_valid_opcode,
+    is_throttled,
+    init_security_config,
+)
+
+try:
+    from bleak import BleakServer, BleakService, BleakCharacteristic
+    from bleak.backends.device import BLEDevice
+    from bleak.backends.characteristic import BleakGATTCharacteristic
+except ImportError:
+    BleakServer = None
+
+FE_C_DEVICE_TYPE = 17
+
+CONFIG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../config.json"))
 
 
 class BikeController:
@@ -67,9 +92,6 @@ class BikeController:
         except serial.SerialException as e:
             logging.error(f"{label} Serial error: {e}")
 
-
-import time
-import csv
 
 class SensorDataProcessor:
     """
@@ -158,17 +180,6 @@ class SensorDataProcessor:
                 logging.error(f"[BLE Notify] Failed to send: {e}")
 
 
-import asyncio
-import platform
-
-try:
-    from bleak import BleakServer, BleakService, BleakCharacteristic
-    from bleak.backends.device import BLEDevice
-    from bleak.backends.characteristic import BleakGATTCharacteristic
-except ImportError:
-    BleakServer = None
-
-
 class BLEServiceManager:
     """
     Manages the BLE FTMS GATT service, including characteristic setup and write security.
@@ -217,7 +228,7 @@ class BLEServiceManager:
     def get_notify_characteristic(self):
         return self.ble_characteristic
 
-    def _on_write(self, device: BLEDevice, _: BleakGATTCharacteristic, data: bytearray):
+    def _on_write(self, device: 'BLEDevice', _: 'BleakGATTCharacteristic', data: bytearray):
         """
         Secure handler for BLE FTMS control commands.
         Applies security checks and forwards to bike controller.
@@ -243,14 +254,6 @@ class BLEServiceManager:
         except Exception as e:
             logging.error(f"[BLE] Failed to process control command: {e}")
 
-
-
-from security_utils import (
-    is_authorized_mac,
-    is_valid_opcode,
-    is_throttled,
-    init_security_config,
-)
 
 class SecurityManager:
     """
@@ -295,9 +298,6 @@ class SecurityManager:
         return is_throttled(mac)
 
 
-
-import os
-
 class RideLogger:
     """
     Handles CSV logging of ride metrics such as power, cadence, speed, and incline.
@@ -332,9 +332,6 @@ class RideLogger:
         except Exception as e:
             logging.error(f"[LOGGER] Failed to write to log: {e}")
 
-
-from openant.easy.node import Node
-from openant.easy.channel import Channel
 
 class AntPlusReceiver:
     """
@@ -387,10 +384,6 @@ class AntPlusReceiver:
         self.node.stop()
 
 
-import argparse
-
-FE_C_DEVICE_TYPE = 17  # Device type for FE-C (Fitness Equipment Control) devices
-
 class TDFBridgeApp:
     """
     The main application class that orchestrates all components: BLE, ANT+, bike control, and logging.
@@ -398,7 +391,7 @@ class TDFBridgeApp:
 
     def __init__(self):
         self.args = self._parse_args()
-        self.security = SecurityManager(config_path=self.args.config)
+        self.security = SecurityManager(config_path=CONFIG_PATH)
         self.bike = BikeController(port=self.args.incline)
         self.logger = RideLogger()
         self.ble_service = BLEServiceManager(self.bike, self.security)
@@ -414,7 +407,8 @@ class TDFBridgeApp:
         parser.add_argument("--incline", help="Serial port for incline control")
         parser.add_argument("--ble", action="store_true", help="Enable BLE FTMS broadcasting")
         parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-        parser.add_argument("--config", default="config.json", help="Path to config.json")
+        parser.add_argument("--config", default=CONFIG_PATH, help="Path to config.json")
+        parser.add_argument("--test", action="store_true", help="Run in test mode (simulated data, no hardware needed)")
         return parser.parse_args()
 
     def _setup_logging(self):
@@ -431,9 +425,12 @@ class TDFBridgeApp:
             logging.error("Aborting due to failed security config.")
             return
 
-        if not self.bike.port:
+        if not self.bike.port and not self.args.test:
             logging.error("No serial port detected or provided.")
             return
+        elif not self.bike.port and self.args.test:
+            logging.warning("[TEST MODE] No serial port detected, continuing in simulation mode.")
+
 
         tasks = []
 
@@ -449,12 +446,18 @@ class TDFBridgeApp:
                 self.processor.ble_characteristic = self.ble_service.get_notify_characteristic()
 
         # Start ANT+ receiver
-        ant_receiver = AntPlusReceiver(
-            device_type=FE_C_DEVICE_TYPE,
-            serial_port=self.bike.port,
-            on_data_callback=self.processor.process
-        )
-        tasks.append(asyncio.create_task(ant_receiver.start()))
+        if not self.args.test:
+            # Start ANT+ receiver only in real mode
+            ant_receiver = AntPlusReceiver(
+                device_type=FE_C_DEVICE_TYPE,
+                serial_port=self.bike.port,
+                on_data_callback=self.processor.process
+            )
+            tasks.append(asyncio.create_task(ant_receiver.start()))
+        else:
+            # TEST MODE: Simulate data instead of real ANT+ receiver
+            tasks.append(asyncio.create_task(self.simulate_ant_plus_data()))
+
 
         try:
             await asyncio.gather(*tasks)
@@ -463,6 +466,19 @@ class TDFBridgeApp:
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+    
+    async def simulate_ant_plus_data(self):
+        logging.info("[TEST MODE] Simulating ANT+ data packets.")
+        for i in range(10):  # Simulate 10 packets
+            fake_data = [0] * 12
+            fake_data[7] = random.randint(150, 200)   # Power
+            fake_data[8] = 0
+            fake_data[10] = random.randint(80, 100)   # Cadence
+            fake_data[5] = random.randint(0, 100)     # Grade low byte (0-1%)
+            fake_data[6] = 0
+            self.processor.process(fake_data)
+            await asyncio.sleep(1)  # Simulate time between packets
+        logging.info("[TEST MODE] Finished simulating ANT+ data.")
 
 
 if __name__ == "__main__":
