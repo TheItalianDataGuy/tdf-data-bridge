@@ -1,25 +1,29 @@
 # TDF Data Bridge
 
-Control your **ProForm TDF 5.0** indoor bike using **Zwift**, **ANT+**, and **BLE FTMS**. This bridge allows automatic incline, resistance, and gear control while securely exposing data over Bluetooth and logging ride metrics locally.
+Control your **ProForm TDF 5.0** indoor bike using **Zwift**, **ANT+**, and **BLE FTMS** protocols.  
+This bridge enables automatic incline, resistance, and gear control while securely exposing live data over Bluetooth and logging ride metrics locally.
 
 ---
 
 ## 🚴‍♂️ Features
 
-- Control incline, resistance, and gear via serial commands
-- Read real-time data from ANT+ FE-C broadcasts
-- Broadcast metrics to BLE FTMS-compatible apps (e.g., Zwift)
-- Secure BLE control: MAC whitelist, opcode filtering, rate limiting
-- Automatically logs rides to CSV (`ride_log.csv`)
-- CLI tool installed via `tdf-bridge` command
+- **Automatic incline, resistance, and gear control** via serial commands
+- **Real-time data ingestion** from ANT+ FE-C broadcasts (Fitness Equipment Control)
+- **BLE FTMS (Fitness Machine Service) notifications** for compatible apps (e.g., Zwift, TrainerRoad)
+- **Configurable security**: MAC whitelist, opcode filtering, and rate limiting for BLE control
+- **Ride logging**: All metrics saved to CSV (`ride_log.csv`)
+- **Test mode**: Simulate ride data for demo and development (no hardware required)
+- **Modern Python project structure** for easy extension and testing
 
 ---
 
 ## 🔧 Installation
 
-Install using `pip` with the new [`pyproject.toml`](https://peps.python.org/pep-0621/) standard:
+Clone the repository and install using [PEP 621](https://peps.python.org/pep-0621/) standards:
 
 ```bash
+git clone https://github.com/TheItalianDataGuy/tdf-data-bridge.git
+cd tdf-data-bridge
 pip install .
 ```
 
@@ -28,42 +32,62 @@ Or build a wheel:
 ```bash
 pip install build
 python -m build
+pip install dist/tdf_data_bridge-*.whl
 ```
-
-Then install the `.whl` file from `dist/`.
 
 ---
 
 ## 💻 Usage
 
+Run the bridge from the project root:
+
 ```bash
-tdf-bridge --ble --incline /dev/ttyUSB0 --debug
+python src/tdf_data_bridge/main.py --ble --incline /dev/ttyUSB0 --debug
 ```
 
-### CLI Options
-- `--ble`: Enable BLE FTMS broadcasting (Linux/macOS only)
-- `--incline`: Set serial port path manually (optional)
-- `--ant`: Set ANT+ USB device (default: `usb:0`)
-- `--debug`: Enable detailed logs
-- `--config`: Path to security config file (default: `config.json`)
+### **CLI Options**
+
+| Flag           | Description                                                 |
+| -------------- | ----------------------------------------------------------- |
+| `--ble`        | Enable BLE FTMS broadcasting (see platform support below)   |
+| `--incline`    | Set serial port path manually (optional, auto-detects by default) |
+| `--ant`        | Set ANT+ USB device path (default: `usb:0`)                |
+| `--debug`      | Enable verbose debug logging                                |
+| `--config`     | Path to security config file (default: `config.json`)       |
+| `--test`       | **Simulate ride data with no hardware required**            |
+
+### **Test Mode Example**
+
+To simulate the entire workflow without any hardware (for portfolio/demo):
+
+```bash
+python src/tdf_data_bridge/main.py --ble --test --debug
+```
+
+- This will generate and process fake ride data, printing simulated BLE FTMS packets in the log for easy demonstration.
 
 ---
 
-## ⚠️ Platform Support
+## ⚠️ Platform Support & BLE Limitations
 
-- **BLE FTMS server is only available on Linux and macOS.**
-- On **Windows**, BLE FTMS broadcasting is not supported due to Bleak library limitations.
-- ANT+/serial features work on all platforms.
+- **ANT+ and Serial support:**  
+  - Works on all major platforms (Linux, macOS, Windows) with compatible hardware.
+- **BLE FTMS server:**  
+  - **Linux**: BLE FTMS server mode supported with [bleak](https://github.com/hbldh/bleak) or [aiobleserver](https://github.com/JennyMish/aiobleserver).
+  - **macOS/Windows**:  
+    - Python BLE server is **not available** due to OS and library limitations (see [issue](https://github.com/hbldh/bleak/issues/1230)).
+    - BLE FTMS code will log simulated notifications, but cannot advertise as a peripheral/server.
+    - This does **not** affect test mode or portfolio review; simulated BLE notifications will still be shown in the logs.
 
 ---
 
 ## 🔐 Security
 
-- BLE writes only accepted from approved MAC addresses
-- Only specific FTMS opcodes allowed
-- Commands rate-limited (configurable)
+- BLE control is restricted by a whitelist of allowed MAC addresses
+- Only valid FTMS opcodes are accepted (as configured)
+- All BLE commands are rate-limited to prevent abuse
 
-Security settings are defined in `config.json`:
+Example `config.json`:
 
 ```json
 {
@@ -100,12 +124,12 @@ Security settings are defined in `config.json`:
 .
 ├── src/
 │   └── tdf_data_bridge/
-│       ├── main.py               # Main entry point
-│       ├── security_utils.py     # BLE security checks
-│       ├── test_bike_commands.py # Serial command handling 
-        └── __init__.py           # Package initialization
-├── ride_log.csv                 # Generated ride log
-├── config.json                  # Security settings
+│       ├── main.py                 # Main entry point
+│       ├── security_utils.py       # BLE security logic
+│       ├── test_bike_commands.py   # Serial/command tests
+│       └── __init__.py             # Package init
+├── ride_log.csv                    # Ride log (generated)
+├── config.json                     # Security config
 ├── requirements.txt
 ├── pyproject.toml
 ├── README.md
@@ -116,24 +140,29 @@ Security settings are defined in `config.json`:
 
 ## 🛠 Development
 
-Run locally:
-
-```bash
-python tdf_data_bridge/main.py --debug --ble
-```
-
-Test with mock BLE devices or ANT+ emulator if needed.
+- Develop locally with or without hardware using `--test` mode.
+- Simulated BLE/ANT+ logs are printed for easy debugging and demonstration.
+- Code follows modern Python best practices for modularity and testability.
 
 ---
 
 ## 🛡 Dependency Security
 
-- To check for known vulnerabilities, run:
+- Check for vulnerabilities with:
   ```bash
   pip install pip-audit
   pip-audit
   ```
 - Update dependencies regularly and review release notes for security patches.
+
+---
+
+## 🧪 Example: Simulated BLE FTMS Packet Log Output
+
+```
+[BLE Notify FTMS] Sent: [255, 3, 120, 44, 180, 0, 98, 0, 150, ...]
+```
+> When running in test mode, this is printed/logged to demonstrate BLE notification content (even on platforms that do not support BLE server).
 
 ---
 
@@ -146,3 +175,12 @@ Test with mock BLE devices or ANT+ emulator if needed.
 ## 🌐 Author
 
 [TheItalianDataGuy](https://github.com/TheItalianDataGuy)
+
+---
+
+**Questions? Issues?**  
+Please open an issue or contact me via GitHub!
+
+---
+
+### ⭐ **If you use this for your own indoor cycling, portfolio, or learning, please star the repo!**
