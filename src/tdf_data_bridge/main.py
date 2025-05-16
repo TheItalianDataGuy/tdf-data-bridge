@@ -92,6 +92,7 @@ class SensorDataProcessor:
         Called on each ANT+ data packet. Parses and logs metrics, controls the bike.
         """
         # Modify these indices based on the actual FE-C profile
+        print("RAW ANT+ DATA:", list(data))
         try:
             power = data[7] | (data[8] << 8)
             cadence = data[10]
@@ -202,14 +203,11 @@ class AntPlusReceiver:
         self.channel = None
 
     def _configure_channel(self):
-        network = self.node.get_free_network()
-        network.set_key(0xB9, [0] * 8)
         self.channel = self.node.new_channel(Channel.Type.BIDIRECTIONAL_RECEIVE)
         self.channel.set_period(8182)
         self.channel.set_search_timeout(255)
         self.channel.set_rf_freq(57)
-        self.channel.set_id(0, 0, 0)
-        self.channel.set_device_type(self.device_type)
+        self.channel.set_id(0, self.device_type, 0)
         self.channel.on_broadcast_data = lambda data: self.on_data_callback(data, self.serial_port)
 
     async def start(self):
