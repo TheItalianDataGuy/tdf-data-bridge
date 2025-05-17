@@ -26,3 +26,4 @@ Thumbs.db
 .ipynb_checkpoints/
 
 config.json 
+ride_log.csv
