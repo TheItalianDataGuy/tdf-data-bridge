@@ -1,5 +1,9 @@
 # TDF Data Bridge
 
+![Python Tests](https://github.com/TheItalianDataGuy/tdf-data-bridge/actions/workflows/python-tests.yml/badge.svg?branch=ble-version)
+![Python Version](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11-blue)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
 Control your **ProForm TDF 5.0** indoor bike using **Zwift**, **ANT+**, and **BLE FTMS** protocols.  
 This bridge enables automatic incline, resistance, and gear control while securely exposing live data over Bluetooth and logging ride metrics locally.
 
