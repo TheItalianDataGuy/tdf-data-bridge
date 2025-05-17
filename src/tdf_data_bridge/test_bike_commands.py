@@ -9,8 +9,6 @@ from security_utils import (
     init_security_config,
     last_command_time
 )
-# If you use the BikeController class, import it here:
-# from main import BikeController, estimate_speed_from_cadence
 
 bike = BikeController(port="/dev/ttyUSB0")
 processor = SensorDataProcessor(bike_controller=bike)

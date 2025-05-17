@@ -56,6 +56,8 @@ python src/tdf_data_bridge/main.py --ble --incline /dev/ttyUSB0 --debug
 | `--config`     | Path to security config file (default: `config.json`)       |
 | `--test`       | **Simulate ride data with no hardware required**            |
 
+---
+
 ### **Test Mode Example**
 
 To simulate the entire workflow without any hardware (for portfolio/demo):
@@ -157,6 +159,22 @@ Example `config.json`:
 
 ---
 
+## 🧪 Testing
+
+- All core logic for command transmission and BLE security is covered by automated unit tests using Python's `unittest` framework.
+- To run all tests, execute:
+  ```bash
+  python -m unittest discover src/tdf_data_bridge
+  ```
+  or run a specific test file directly:
+  ```bash
+  python src/tdf_data_bridge/test_bike_commands.py
+  ```
+- Tests use mocks and do **not** require connected hardware for validation.
+- Integrate with GitHub Actions or your preferred CI tool for continuous testing and professional code validation.
+
+---
+
 ## 🧪 Example: Simulated BLE FTMS Packet Log Output
 
 ```
@@ -178,9 +196,5 @@ Example `config.json`:
 
 ---
 
-**Questions? Issues?**  
+**Issues?**  
 Please open an issue or contact me via GitHub!
-
----
-
-### ⭐ **If you use this for your own indoor cycling, portfolio, or learning, please star the repo!**

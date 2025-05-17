@@ -9,6 +9,7 @@ from openant.easy.channel import Channel
 import serial.tools.list_ports
 import asyncio
 import random
+import platform
 from security_utils import (
     is_authorized_mac,
     is_valid_opcode,
