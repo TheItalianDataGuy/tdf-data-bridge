@@ -4,7 +4,7 @@
 
 ![Python Version](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11-blue)
 
-[![CodeQL Advanced](https://github.com/TheItalianDataGuy/tdf-data-bridge/actions/workflows/codeql.yml/badge.svg)](https://github.com/TheItalianDataGuy/tdf-data-bridge/actions/workflows/codeql.yml)
+[![CodeQL](https://github.com/TheItalianDataGuy/tdf-data-bridge/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/TheItalianDataGuy/tdf-data-bridge/actions/workflows/github-code-scanning/codeql)
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
